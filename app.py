@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory, session
+from flask import Flask, request, jsonify, send_from_directory, session, send_file
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import os
@@ -9,6 +9,9 @@ import requests
 import re
 import json
 from dotenv import load_dotenv
+from markdown import markdown
+from xhtml2pdf import pisa
+from io import BytesIO
 
 # ==== Load environment variables ====
 load_dotenv()
@@ -212,6 +215,42 @@ def get_annotated_image(filename):
 def clear_history():
     session.pop("history", None)
     return jsonify({"message": "Chat history cleared."})
+
+def generate_pdf_from_markdown(md_content):
+    try:
+        html_content = markdown(md_content)
+        pdf_buffer = BytesIO()
+        pisa_status = pisa.CreatePDF(html_content, dest=pdf_buffer)
+        if pisa_status.err:
+            return None, "PDF generation failed"
+        pdf_buffer.seek(0)
+        return pdf_buffer, None
+    except Exception as e:
+        return None, str(e)
+
+# ==== Download PDF ====
+@app.route("/download_pdf", methods=["POST"])
+def download_pdf():
+    report_md = request.form.get("report_md", "")
+    if not report_md:
+        return jsonify({"error": "No report content provided."}), 400
+
+    try:
+        # Generate PDF from markdown
+        pdf_buffer, error = generate_pdf_from_markdown(report_md)
+        if error:
+            return jsonify({"error": error}), 500
+
+        # Return the PDF as a response
+        return send_file(
+            pdf_buffer,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name='fracture_report.pdf'
+        )
+    except Exception as e:
+        app.logger.error(f"PDF generation error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 # ==== Run the App ====
 if __name__ == "__main__":
