@@ -302,6 +302,14 @@ export const Chat = () => {
     e.preventDefault();
     if (!input.trim() && !selectedFile) return;
 
+    // Log request details
+    console.log('Preparing request:', {
+      hasMessage: !!input.trim(),
+      hasFile: !!selectedFile,
+      fileType: selectedFile?.type,
+      fileSize: selectedFile?.size
+    });
+
     const newMessage: Message = {
       id: Date.now().toString(),
       text: input,
@@ -314,24 +322,74 @@ export const Chat = () => {
 
     const formData = new FormData();
     if (input.trim()) formData.append('message', input);
-    if (selectedFile) formData.append('image', selectedFile);
+    if (selectedFile) {
+      // Validate file size
+      if (selectedFile.size > 16 * 1024 * 1024) {
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          text: "⚠️ **Error**\n\nFile size exceeds 16MB limit. Please upload a smaller file.",
+          sender: 'bot',
+          timestamp: new Date()
+        }]);
+        setIsLoading(false);
+        setSelectedFile(null);
+        return;
+      }
+      formData.append('image', selectedFile);
+    }
 
     // Add chat history to formData
-    const chatHistory = messages.map(msg => ({
-      role: msg.sender === 'user' ? 'user' : 'assistant',
-      content: msg.text
+    const chatHistory = messages
+      .filter(msg => msg.text.trim()) // Filter out empty messages
+      .map(msg => ({
+        role: msg.sender === 'user' ? 'user' : 'assistant',
+        content: msg.text
     }));
     formData.append('chat_history', JSON.stringify(chatHistory));
 
     setIsLoading(true);
 
     try {
+      console.log('Sending request to:', `${API_BASE_URL}/chat`);
+      console.log('Request details:', {
+        message: input,
+        hasFile: !!selectedFile,
+        chatHistoryLength: chatHistory.length,
+        totalFormDataEntries: Array.from(formData.entries()).length
+      });
+
       const response = await fetch(`${API_BASE_URL}/chat`, {
         method: 'POST',
         body: formData,
+        credentials: 'include', // Include cookies for CORS
       });
 
+      console.log('Response status:', response.status);
+      const contentType = response.headers.get('Content-Type');
+      console.log('Response content type:', contentType);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        let errorMessage = 'An error occurred while processing your request.';
+        
+        // Try to parse error message if it's JSON
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorMessage = errorJson.error || errorJson.message || errorMessage;
+        } catch {
+          errorMessage = `Server error (${response.status}): ${errorText}`;
+        }
+        
+        throw new Error(errorMessage);
+      }
+
       const data = await response.json();
+      console.log('Response data:', data);
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
 
       if (data.response) {
         const botMessage: Message = {
@@ -343,17 +401,20 @@ export const Chat = () => {
         };
 
         if (data.annotated_image_url) {
+          console.log('Received annotated image URL:', data.annotated_image_url);
           botMessage.imageUrl = `${API_BASE_URL}${data.annotated_image_url}`;
-          // Store just the filename for use in PDF generation
           botMessage.annotatedImage = data.annotated_image_url;
         }
 
         setMessages(prev => [...prev, botMessage]);
+      } else {
+        throw new Error('Received empty response from server');
       }
     } catch (error) {
+      console.error('Chat request error:', error);
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
-        text: "⚠️ **Error**\n\nFailed to get response from server. Please try again.",
+        text: `⚠️ **Error**\n\n${error instanceof Error ? error.message : 'Failed to get response from server. Please try again.'}`,
         sender: 'bot',
         timestamp: new Date()
       }]);
