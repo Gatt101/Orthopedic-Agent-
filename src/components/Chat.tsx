@@ -61,7 +61,7 @@ export const Chat = () => {
   const handleFindNearbyHospitals = async (messageId: string) => {
     try {
       setIsLocationLoading(true);
-      
+
       // Add a message to indicate we're searching for hospitals
       const userMessage: Message = {
         id: Date.now().toString(),
@@ -69,9 +69,9 @@ export const Chat = () => {
         sender: 'user',
         timestamp: new Date()
       };
-      
+
       setMessages(prev => [...prev, userMessage]);
-      
+
       // Simulate hospital data for testing/development
       // This avoids CORS and API key issues during development
       const simulatedHospitals = [
@@ -97,11 +97,11 @@ export const Chat = () => {
           place_id: "ChIJa8KpAMWfj4ARs7ChHJcockY"
         }
       ];
-      
+
       // Create response message with simulated data
       let responseText = "## Nearby Orthopedic Hospitals\n\n";
       responseText += "Here are orthopedic hospitals that may be near your location:\n\n";
-      
+
       simulatedHospitals.forEach((hospital, index) => {
         responseText += `${index + 1}. **${hospital.name}**\n`;
         responseText += `   Address: ${hospital.address}\n`;
@@ -110,10 +110,10 @@ export const Chat = () => {
         }
         responseText += `   [View on Google Maps](https://www.google.com/maps/place/?q=place_id:${hospital.place_id})\n\n`;
       });
-      
+
       // Add a note about simulated data
       responseText += "\n*Note: This is simulated data for development purposes. In production, this would use your actual location to find nearby hospitals.*";
-      
+
       const botMessage: Message = {
         id: Date.now().toString(),
         text: responseText,
@@ -121,10 +121,10 @@ export const Chat = () => {
         timestamp: new Date(),
         hospitals: simulatedHospitals
       };
-      
+
       setMessages(prev => [...prev, botMessage]);
       setIsLocationLoading(false);
-      
+
       /* 
       // Real implementation commented out for now - uncomment when backend is ready
       // Get user's current location
@@ -213,7 +213,7 @@ export const Chat = () => {
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
       */
-      
+
     } catch (error) {
       console.error("Error in hospital search:", error);
       const errorMessage: Message = {
@@ -232,11 +232,11 @@ export const Chat = () => {
       // Set loading state for this specific message
       setIsPdfLoading(messageId);
       console.log(`Generating PDF for message ${messageId}...`);
-      
+
       // Create a form data object to send the report markdown and image filename
       const formData = new FormData();
       formData.append('report_md', reportSummary);
-      
+
       // Include the annotated image filename if available
       if (annotatedImage) {
         // Extract just the filename from the URL
@@ -246,7 +246,7 @@ export const Chat = () => {
           console.log(`Including annotated image: ${imageName}`);
         }
       }
-      
+
       // Make a request to download the PDF
       const response = await fetch(`${API_BASE_URL}/download_pdf`, {
         method: 'POST',
@@ -255,7 +255,7 @@ export const Chat = () => {
           'Accept': 'application/pdf'
         }
       });
-      
+
       // Check for errors
       if (!response.ok) {
         console.error('PDF generation failed with status:', response.status);
@@ -263,20 +263,20 @@ export const Chat = () => {
         console.error('Error response:', errorText);
         throw new Error(`Failed to generate PDF: ${response.status} ${response.statusText}`);
       }
-      
+
       // Get content type to verify it's a PDF
       const contentType = response.headers.get('Content-Type');
       if (!contentType || !contentType.includes('application/pdf')) {
         console.error('Expected PDF but got:', contentType);
         throw new Error(`Server returned ${contentType} instead of PDF`);
       }
-      
+
       // Get the blob from the response
       const blob = await response.blob();
       if (blob.size === 0) {
         throw new Error('Received empty PDF file');
       }
-      
+
       // Create a download link and trigger download
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -285,7 +285,7 @@ export const Chat = () => {
       a.download = 'fracture_report.pdf';
       document.body.appendChild(a);
       a.click();
-      
+
       // Clean up
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
@@ -320,6 +320,10 @@ export const Chat = () => {
     setMessages(prev => [...prev, newMessage]);
     setInput('');
 
+    // Determine which endpoint to use based on whether there's a file
+    const endpoint = selectedFile ? '/chat+img' : '/chat';
+    console.log(`Using endpoint: ${endpoint}`);
+
     const formData = new FormData();
     if (input.trim()) formData.append('message', input);
     if (selectedFile) {
@@ -340,17 +344,17 @@ export const Chat = () => {
 
     // Add chat history to formData
     const chatHistory = messages
-      .filter(msg => msg.text.trim()) // Filter out empty messages
-      .map(msg => ({
-        role: msg.sender === 'user' ? 'user' : 'assistant',
-        content: msg.text
-    }));
+        .filter(msg => msg.text.trim()) // Filter out empty messages
+        .map(msg => ({
+          role: msg.sender === 'user' ? 'user' : 'assistant',
+          content: msg.text
+        }));
     formData.append('chat_history', JSON.stringify(chatHistory));
 
     setIsLoading(true);
 
     try {
-      console.log('Sending request to:', `${API_BASE_URL}/chat`);
+      console.log('Sending request to:', `${API_BASE_URL}${endpoint}`);
       console.log('Request details:', {
         message: input,
         hasFile: !!selectedFile,
@@ -358,7 +362,7 @@ export const Chat = () => {
         totalFormDataEntries: Array.from(formData.entries()).length
       });
 
-      const response = await fetch(`${API_BASE_URL}/chat`, {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'POST',
         body: formData,
         credentials: 'include', // Include cookies for CORS
@@ -372,7 +376,7 @@ export const Chat = () => {
         const errorText = await response.text();
         console.error('Error response:', errorText);
         let errorMessage = 'An error occurred while processing your request.';
-        
+
         // Try to parse error message if it's JSON
         try {
           const errorJson = JSON.parse(errorText);
@@ -380,7 +384,7 @@ export const Chat = () => {
         } catch {
           errorMessage = `Server error (${response.status}): ${errorText}`;
         }
-        
+
         throw new Error(errorMessage);
       }
 
@@ -425,152 +429,152 @@ export const Chat = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto bg-white/90 dark:bg-gray-800/90 backdrop-blur-md rounded-xl shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-      <div className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-750">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Orthopedic Assistant</h2>
-        <div className="flex space-x-2">
-          {/*<button*/}
-          {/*  onClick={() => handleFindNearbyHospitals("location")}*/}
-          {/*  disabled={isLocationLoading}*/}
-          {/*  className="p-2 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 */}
-          {/*          rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"*/}
-          {/*  title="Find Nearby Hospitals"*/}
-          {/*>*/}
-          {/*  {isLocationLoading ? */}
-          {/*    <Loader className="h-5 w-5 animate-spin" /> : */}
-          {/*    <MapPin className="h-5 w-5" />*/}
-          {/*  }*/}
-          {/*</button>*/}
-          <button
-            onClick={handleReset}
-            className="p-2 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 
+      <div className="max-w-4xl mx-auto bg-white/90 dark:bg-gray-800/90 backdrop-blur-md rounded-xl shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+        <div className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-750">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Orthopedic Assistant</h2>
+          <div className="flex space-x-2">
+            {/*<button*/}
+            {/*  onClick={() => handleFindNearbyHospitals("location")}*/}
+            {/*  disabled={isLocationLoading}*/}
+            {/*  className="p-2 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 */}
+            {/*          rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"*/}
+            {/*  title="Find Nearby Hospitals"*/}
+            {/*>*/}
+            {/*  {isLocationLoading ? */}
+            {/*    <Loader className="h-5 w-5 animate-spin" /> : */}
+            {/*    <MapPin className="h-5 w-5" />*/}
+            {/*  }*/}
+            {/*</button>*/}
+            <button
+                onClick={handleReset}
+                className="p-2 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400
                     rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            title="Reset Chat"
-          >
-            <RotateCcw className="h-5 w-5" />
-          </button>
-        </div>
-      </div>
-
-      <div 
-        ref={chatBoxRef}
-        className="h-[600px] overflow-y-auto p-6 space-y-4 bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-800"
-      >
-        <AnimatePresence>
-          {messages.map((message) => (
-            <motion.div
-              key={message.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                title="Reset Chat"
             >
-              <div
-                className={`max-w-[80%] p-4 rounded-xl shadow-sm ${
-                  message.sender === 'user'
-                    ? 'bg-blue-600 text-white dark:bg-blue-700'
-                    : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700'
-                }`}
-              >
-                <div className={`prose dark:prose-invert ${
-                  message.sender === 'user' ? 'prose-white' : ''
-                } max-w-none`}>
-                  <ReactMarkdown>
-                    {message.text}
-                  </ReactMarkdown>
-                </div>
-                {message.imageUrl && (
-                  <div className="mt-4">
-                    <img 
-                      src={message.imageUrl} 
-                      alt="Annotated X-ray" 
-                      className="max-w-full rounded-lg shadow-md"
-                    />
-                  </div>
-                )}
-                {message.sender === 'bot' && message.reportSummary && (
-                  <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
-                    <button
-                      onClick={() => handleDownloadPDF(
-                        message.reportSummary!, 
-                        message.id, 
-                        message.annotatedImage
-                      )}
-                      disabled={isPdfLoading === message.id}
-                      className="flex items-center space-x-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 disabled:opacity-50"
-                    >
-                      {isPdfLoading === message.id ? (
-                        <>
-                          <Loader className="h-4 w-4 animate-spin" />
-                          <span>Generating PDF...</span>
-                        </>
-                      ) : (
-                        <>
-                          <FileDown className="h-4 w-4" />
-                          <span>Download Report as PDF{message.imageUrl ? ' with X-ray' : ''}</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          ))}
-          {isLoading && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="flex space-x-2 p-4 bg-white dark:bg-gray-800 rounded-xl w-24 border border-gray-200 dark:border-gray-700 shadow-sm"
-            >
-              <div className="w-2 h-2 bg-blue-400 dark:bg-blue-500 rounded-full animate-bounce" />
-              <div className="w-2 h-2 bg-blue-400 dark:bg-blue-500 rounded-full animate-bounce delay-100" />
-              <div className="w-2 h-2 bg-blue-400 dark:bg-blue-500 rounded-full animate-bounce delay-200" />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      <form onSubmit={handleSubmit} className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-750">
-        <div className="flex space-x-4">
-          <input
-            type="file"
-            ref={fileInputRef}
-            className="hidden"
-            accept="image/*"
-            onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-          />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="p-2 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400
-                     hover:bg-white/50 dark:hover:bg-gray-700/50 rounded-lg transition-colors"
-          >
-            <Upload className="h-6 w-6" />
-          </button>
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your message..."
-            className="flex-1 p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white
-                     focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent bg-white/70 dark:bg-gray-700/70 backdrop-blur-sm"
-          />
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:bg-blue-500 
-                     dark:hover:bg-blue-600 disabled:opacity-50 transition-colors shadow-sm"
-          >
-            <Send className="h-6 w-6" />
-          </button>
-        </div>
-        {selectedFile && (
-          <div className="mt-2 text-sm text-gray-600 dark:text-gray-400 flex items-center">
-            <ImageIcon className="h-4 w-4 mr-1" />
-            {selectedFile.name}
+              <RotateCcw className="h-5 w-5" />
+            </button>
           </div>
-        )}
-      </form>
-    </div>
+        </div>
+
+        <div
+            ref={chatBoxRef}
+            className="h-[600px] overflow-y-auto p-6 space-y-4 bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-800"
+        >
+          <AnimatePresence>
+            {messages.map((message) => (
+                <motion.div
+                    key={message.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                      className={`max-w-[80%] p-4 rounded-xl shadow-sm ${
+                          message.sender === 'user'
+                              ? 'bg-blue-600 text-white dark:bg-blue-700'
+                              : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700'
+                      }`}
+                  >
+                    <div className={`prose dark:prose-invert ${
+                        message.sender === 'user' ? 'prose-white' : ''
+                    } max-w-none`}>
+                      <ReactMarkdown>
+                        {message.text}
+                      </ReactMarkdown>
+                    </div>
+                    {message.imageUrl && (
+                        <div className="mt-4">
+                          <img
+                              src={message.imageUrl}
+                              alt="Annotated X-ray"
+                              className="max-w-full rounded-lg shadow-md"
+                          />
+                        </div>
+                    )}
+                    {message.sender === 'bot' && message.reportSummary && (
+                        <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+                          <button
+                              onClick={() => handleDownloadPDF(
+                                  message.reportSummary!,
+                                  message.id,
+                                  message.annotatedImage
+                              )}
+                              disabled={isPdfLoading === message.id}
+                              className="flex items-center space-x-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 disabled:opacity-50"
+                          >
+                            {isPdfLoading === message.id ? (
+                                <>
+                                  <Loader className="h-4 w-4 animate-spin" />
+                                  <span>Generating PDF...</span>
+                                </>
+                            ) : (
+                                <>
+                                  <FileDown className="h-4 w-4" />
+                                  <span>Download Report as PDF{message.imageUrl ? ' with X-ray' : ''}</span>
+                                </>
+                            )}
+                          </button>
+                        </div>
+                    )}
+                  </div>
+                </motion.div>
+            ))}
+            {isLoading && (
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex space-x-2 p-4 bg-white dark:bg-gray-800 rounded-xl w-24 border border-gray-200 dark:border-gray-700 shadow-sm"
+                >
+                  <div className="w-2 h-2 bg-blue-400 dark:bg-blue-500 rounded-full animate-bounce" />
+                  <div className="w-2 h-2 bg-blue-400 dark:bg-blue-500 rounded-full animate-bounce delay-100" />
+                  <div className="w-2 h-2 bg-blue-400 dark:bg-blue-500 rounded-full animate-bounce delay-200" />
+                </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-750">
+          <div className="flex space-x-4">
+            <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                accept="image/*"
+                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+            />
+            <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="p-2 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400
+                     hover:bg-white/50 dark:hover:bg-gray-700/50 rounded-lg transition-colors"
+            >
+              <Upload className="h-6 w-6" />
+            </button>
+            <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Type your message..."
+                className="flex-1 p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white
+                     focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent bg-white/70 dark:bg-gray-700/70 backdrop-blur-sm"
+            />
+            <button
+                type="submit"
+                disabled={isLoading}
+                className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:bg-blue-500
+                     dark:hover:bg-blue-600 disabled:opacity-50 transition-colors shadow-sm"
+            >
+              <Send className="h-6 w-6" />
+            </button>
+          </div>
+          {selectedFile && (
+              <div className="mt-2 text-sm text-gray-600 dark:text-gray-400 flex items-center">
+                <ImageIcon className="h-4 w-4 mr-1" />
+                {selectedFile.name}
+              </div>
+          )}
+        </form>
+      </div>
   );
 };
