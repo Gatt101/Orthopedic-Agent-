@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, Send, Image as ImageIcon, RotateCcw, FileDown, Loader, MapPin } from 'lucide-react';
+import { Upload, Send, Image as ImageIcon, RotateCcw, FileDown, Loader } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 import ReactMarkdown from 'react-markdown';
 import { useTheme } from '../context/ThemeContext';
@@ -10,9 +10,8 @@ interface Message {
   text: string;
   sender: 'user' | 'bot';
   timestamp: Date;
-  imageUrl?: string;
+  imageBase64?: string;
   reportSummary?: string;
-  annotatedImage?: string;
   hospitals?: Hospital[];
 }
 
@@ -38,7 +37,6 @@ export const Chat = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isPdfLoading, setIsPdfLoading] = useState<string | null>(null);
-  const [isLocationLoading, setIsLocationLoading] = useState(false);
   const chatBoxRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { isDarkMode } = useTheme();
@@ -58,196 +56,19 @@ export const Chat = () => {
     }]);
   };
 
-  const handleFindNearbyHospitals = async (messageId: string) => {
+  const handleDownloadPDF = async (reportSummary: string, messageId: string, imageBase64?: string) => {
     try {
-      setIsLocationLoading(true);
-
-      // Add a message to indicate we're searching for hospitals
-      const userMessage: Message = {
-        id: Date.now().toString(),
-        text: "Find nearby orthopedic hospitals for me",
-        sender: 'user',
-        timestamp: new Date()
-      };
-
-      setMessages(prev => [...prev, userMessage]);
-
-      // Simulate hospital data for testing/development
-      // This avoids CORS and API key issues during development
-      const simulatedHospitals = [
-        {
-          name: "City Orthopedic Hospital",
-          address: "123 Medical Center Dr",
-          rating: 4.5,
-          location: { lat: 37.7749, lng: -122.4194 },
-          place_id: "ChIJIQBpAG2ahYAR_6128GcTUEo"
-        },
-        {
-          name: "Central Bone & Joint Clinic",
-          address: "456 Healthcare Ave",
-          rating: 4.2,
-          location: { lat: 37.7749, lng: -122.4194 },
-          place_id: "ChIJa8KpAMWfj4ARs7ChHJcockY"
-        },
-        {
-          name: "Advanced Orthopedic Center",
-          address: "789 Wellness Blvd",
-          rating: 4.8,
-          location: { lat: 37.7749, lng: -122.4194 },
-          place_id: "ChIJa8KpAMWfj4ARs7ChHJcockY"
-        }
-      ];
-
-      // Create response message with simulated data
-      let responseText = "## Nearby Orthopedic Hospitals\n\n";
-      responseText += "Here are orthopedic hospitals that may be near your location:\n\n";
-
-      simulatedHospitals.forEach((hospital, index) => {
-        responseText += `${index + 1}. **${hospital.name}**\n`;
-        responseText += `   Address: ${hospital.address}\n`;
-        if (hospital.rating) {
-          responseText += `   Rating: ${hospital.rating} ⭐\n`;
-        }
-        responseText += `   [View on Google Maps](https://www.google.com/maps/place/?q=place_id:${hospital.place_id})\n\n`;
-      });
-
-      // Add a note about simulated data
-      responseText += "\n*Note: This is simulated data for development purposes. In production, this would use your actual location to find nearby hospitals.*";
-
-      const botMessage: Message = {
-        id: Date.now().toString(),
-        text: responseText,
-        sender: 'bot',
-        timestamp: new Date(),
-        hospitals: simulatedHospitals
-      };
-
-      setMessages(prev => [...prev, botMessage]);
-      setIsLocationLoading(false);
-
-      /* 
-      // Real implementation commented out for now - uncomment when backend is ready
-      // Get user's current location
-      if (!navigator.geolocation) {
-        throw new Error("Geolocation is not supported by your browser");
-      }
-      
-      // Get current position
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const { latitude, longitude } = position.coords;
-          
-          try {
-            // Make API call to backend to find nearby hospitals
-            const response = await fetch(`${API_BASE_URL}/nearby_hospitals`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ lat: latitude, lng: longitude }),
-              credentials: 'include', // Include cookies for CORS
-            });
-            
-            if (!response.ok) {
-              throw new Error(`Error: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            
-            if (data.error) {
-              throw new Error(data.error);
-            }
-            
-            const hospitals = data.hospitals || [];
-            
-            // Create response message
-            let responseText = "## Nearby Orthopedic Hospitals\n\n";
-            
-            if (hospitals.length === 0) {
-              responseText += "No orthopedic hospitals found in your area.";
-            } else {
-              responseText += "Here are orthopedic hospitals near your location:\n\n";
-              hospitals.forEach((hospital: Hospital, index: number) => {
-                responseText += `${index + 1}. **${hospital.name}**\n`;
-                responseText += `   Address: ${hospital.address}\n`;
-                if (hospital.rating) {
-                  responseText += `   Rating: ${hospital.rating} ⭐\n`;
-                }
-                responseText += `   [View on Google Maps](https://www.google.com/maps/place/?q=place_id:${hospital.place_id})\n\n`;
-              });
-            }
-            
-            const botMessage: Message = {
-              id: Date.now().toString(),
-              text: responseText,
-              sender: 'bot',
-              timestamp: new Date(),
-              hospitals: hospitals
-            };
-            
-            setMessages(prev => [...prev, botMessage]);
-          } catch (error) {
-            console.error("Error fetching hospitals:", error);
-            const errorMessage: Message = {
-              id: Date.now().toString(),
-              text: `## Error\n\nFailed to find nearby hospitals: ${error instanceof Error ? error.message : 'Unknown error'}`,
-              sender: 'bot',
-              timestamp: new Date()
-            };
-            setMessages(prev => [...prev, errorMessage]);
-          } finally {
-            setIsLocationLoading(false);
-          }
-        },
-        (error) => {
-          console.error("Geolocation error:", error);
-          const errorMessage: Message = {
-            id: Date.now().toString(),
-            text: `## Error\n\nUnable to access your location: ${error.message}. Please allow location access to use this feature.`,
-            sender: 'bot',
-            timestamp: new Date()
-          };
-          setMessages(prev => [...prev, errorMessage]);
-          setIsLocationLoading(false);
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      );
-      */
-
-    } catch (error) {
-      console.error("Error in hospital search:", error);
-      const errorMessage: Message = {
-        id: Date.now().toString(),
-        text: `## Error\n\nFailed to search for hospitals: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        sender: 'bot',
-        timestamp: new Date()
-      };
-      setMessages(prev => [...prev, errorMessage]);
-      setIsLocationLoading(false);
-    }
-  };
-
-  const handleDownloadPDF = async (reportSummary: string, messageId: string, annotatedImage?: string) => {
-    try {
-      // Set loading state for this specific message
       setIsPdfLoading(messageId);
-      console.log(`Generating PDF for message ${messageId}...`);
 
-      // Create a form data object to send the report markdown and image filename
       const formData = new FormData();
       formData.append('report_md', reportSummary);
 
-      // Include the annotated image filename if available
-      if (annotatedImage) {
-        // Extract just the filename from the URL
-        const imageName = annotatedImage.split('/').pop();
-        if (imageName) {
-          formData.append('annotated_image', imageName);
-          console.log(`Including annotated image: ${imageName}`);
-        }
+      // If imageBase64 is present, extract the base64 part and send it
+      if (imageBase64 && imageBase64.startsWith('data:image')) {
+        const base64Data = imageBase64.split(',')[1];
+        formData.append('image_base64', base64Data);
       }
 
-      // Make a request to download the PDF
       const response = await fetch(`${API_BASE_URL}/download_pdf`, {
         method: 'POST',
         body: formData,
@@ -256,28 +77,21 @@ export const Chat = () => {
         }
       });
 
-      // Check for errors
       if (!response.ok) {
-        console.error('PDF generation failed with status:', response.status);
         const errorText = await response.text();
-        console.error('Error response:', errorText);
-        throw new Error(`Failed to generate PDF: ${response.status} ${response.statusText}`);
+        throw new Error(`Failed to generate PDF: ${response.status} ${response.statusText}\n${errorText}`);
       }
 
-      // Get content type to verify it's a PDF
       const contentType = response.headers.get('Content-Type');
       if (!contentType || !contentType.includes('application/pdf')) {
-        console.error('Expected PDF but got:', contentType);
         throw new Error(`Server returned ${contentType} instead of PDF`);
       }
 
-      // Get the blob from the response
       const blob = await response.blob();
       if (blob.size === 0) {
         throw new Error('Received empty PDF file');
       }
 
-      // Create a download link and trigger download
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.style.display = 'none';
@@ -285,13 +99,9 @@ export const Chat = () => {
       a.download = 'fracture_report.pdf';
       document.body.appendChild(a);
       a.click();
-
-      // Clean up
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      console.log('PDF download completed successfully');
     } catch (error) {
-      console.error('Error downloading PDF:', error);
       alert(`Failed to download PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsPdfLoading(null);
@@ -301,14 +111,6 @@ export const Chat = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() && !selectedFile) return;
-
-    // Log request details
-    console.log('Preparing request:', {
-      hasMessage: !!input.trim(),
-      hasFile: !!selectedFile,
-      fileType: selectedFile?.type,
-      fileSize: selectedFile?.size
-    });
 
     const newMessage: Message = {
       id: Date.now().toString(),
@@ -320,14 +122,11 @@ export const Chat = () => {
     setMessages(prev => [...prev, newMessage]);
     setInput('');
 
-    // Determine which endpoint to use based on whether there's a file
-    const endpoint = selectedFile ? '/chat+img' : '/chat';
-    console.log(`Using endpoint: ${endpoint}`);
+    const endpoint = selectedFile ? '/chatimg' : '/chat';
 
     const formData = new FormData();
     if (input.trim()) formData.append('message', input);
     if (selectedFile) {
-      // Validate file size
       if (selectedFile.size > 16 * 1024 * 1024) {
         setMessages(prev => [...prev, {
           id: Date.now().toString(),
@@ -342,9 +141,8 @@ export const Chat = () => {
       formData.append('image', selectedFile);
     }
 
-    // Add chat history to formData
     const chatHistory = messages
-        .filter(msg => msg.text.trim()) // Filter out empty messages
+        .filter(msg => msg.text.trim())
         .map(msg => ({
           role: msg.sender === 'user' ? 'user' : 'assistant',
           content: msg.text
@@ -354,42 +152,25 @@ export const Chat = () => {
     setIsLoading(true);
 
     try {
-      console.log('Sending request to:', `${API_BASE_URL}${endpoint}`);
-      console.log('Request details:', {
-        message: input,
-        hasFile: !!selectedFile,
-        chatHistoryLength: chatHistory.length,
-        totalFormDataEntries: Array.from(formData.entries()).length
-      });
-
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'POST',
         body: formData,
-        credentials: 'include', // Include cookies for CORS
+        credentials: 'include',
       });
-
-      console.log('Response status:', response.status);
-      const contentType = response.headers.get('Content-Type');
-      console.log('Response content type:', contentType);
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Error response:', errorText);
         let errorMessage = 'An error occurred while processing your request.';
-
-        // Try to parse error message if it's JSON
         try {
           const errorJson = JSON.parse(errorText);
           errorMessage = errorJson.error || errorJson.message || errorMessage;
         } catch {
           errorMessage = `Server error (${response.status}): ${errorText}`;
         }
-
         throw new Error(errorMessage);
       }
 
       const data = await response.json();
-      console.log('Response data:', data);
 
       if (data.error) {
         throw new Error(data.error);
@@ -404,10 +185,8 @@ export const Chat = () => {
           reportSummary: data.report_summary || null
         };
 
-        if (data.annotated_image_url) {
-          console.log('Received annotated image URL:', data.annotated_image_url);
-          botMessage.imageUrl = `${API_BASE_URL}${data.annotated_image_url}`;
-          botMessage.annotatedImage = data.annotated_image_url;
+        if (data.annotated_image_base64) {
+          botMessage.imageBase64 = data.annotated_image_base64;
         }
 
         setMessages(prev => [...prev, botMessage]);
@@ -415,7 +194,6 @@ export const Chat = () => {
         throw new Error('Received empty response from server');
       }
     } catch (error) {
-      console.error('Chat request error:', error);
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
         text: `⚠️ **Error**\n\n${error instanceof Error ? error.message : 'Failed to get response from server. Please try again.'}`,
@@ -433,22 +211,10 @@ export const Chat = () => {
         <div className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-750">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Orthopedic Assistant</h2>
           <div className="flex space-x-2">
-            {/*<button*/}
-            {/*  onClick={() => handleFindNearbyHospitals("location")}*/}
-            {/*  disabled={isLocationLoading}*/}
-            {/*  className="p-2 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 */}
-            {/*          rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"*/}
-            {/*  title="Find Nearby Hospitals"*/}
-            {/*>*/}
-            {/*  {isLocationLoading ? */}
-            {/*    <Loader className="h-5 w-5 animate-spin" /> : */}
-            {/*    <MapPin className="h-5 w-5" />*/}
-            {/*  }*/}
-            {/*</button>*/}
             <button
                 onClick={handleReset}
                 className="p-2 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400
-                    rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                 title="Reset Chat"
             >
               <RotateCcw className="h-5 w-5" />
@@ -483,10 +249,10 @@ export const Chat = () => {
                         {message.text}
                       </ReactMarkdown>
                     </div>
-                    {message.imageUrl && (
+                    {message.imageBase64 && (
                         <div className="mt-4">
                           <img
-                              src={message.imageUrl}
+                              src={message.imageBase64}
                               alt="Annotated X-ray"
                               className="max-w-full rounded-lg shadow-md"
                           />
@@ -498,7 +264,7 @@ export const Chat = () => {
                               onClick={() => handleDownloadPDF(
                                   message.reportSummary!,
                                   message.id,
-                                  message.annotatedImage
+                                  message.imageBase64
                               )}
                               disabled={isPdfLoading === message.id}
                               className="flex items-center space-x-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 disabled:opacity-50"
@@ -511,7 +277,7 @@ export const Chat = () => {
                             ) : (
                                 <>
                                   <FileDown className="h-4 w-4" />
-                                  <span>Download Report as PDF{message.imageUrl ? ' with X-ray' : ''}</span>
+                                  <span>Download Report as PDF{message.imageBase64 ? ' with X-ray' : ''}</span>
                                 </>
                             )}
                           </button>
@@ -547,7 +313,7 @@ export const Chat = () => {
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 className="p-2 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400
-                     hover:bg-white/50 dark:hover:bg-gray-700/50 rounded-lg transition-colors"
+                 hover:bg-white/50 dark:hover:bg-gray-700/50 rounded-lg transition-colors"
             >
               <Upload className="h-6 w-6" />
             </button>
@@ -557,13 +323,13 @@ export const Chat = () => {
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Type your message..."
                 className="flex-1 p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white
-                     focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent bg-white/70 dark:bg-gray-700/70 backdrop-blur-sm"
+                 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent bg-white/70 dark:bg-gray-700/70 backdrop-blur-sm"
             />
             <button
                 type="submit"
                 disabled={isLoading}
                 className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:bg-blue-500
-                     dark:hover:bg-blue-600 disabled:opacity-50 transition-colors shadow-sm"
+                 dark:hover:bg-blue-600 disabled:opacity-50 transition-colors shadow-sm"
             >
               <Send className="h-6 w-6" />
             </button>
