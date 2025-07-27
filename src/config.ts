@@ -1,2 +1,2 @@
-export const API_BASE_URL = ['https://bonefracturedetection-production.up.railway.app/'];
+export const API_BASE_URL = ['https://bone-fracture-detection-xihx.onrender.com/'];
 //backend fix
